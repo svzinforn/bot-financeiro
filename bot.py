@@ -169,4 +169,4 @@ async def resetar(interaction: discord.Interaction):
     save_data(data)
     await interaction.response.send_message("🔄 Todos os seus dados foram resetados com sucesso.")
 
-bot.run(MTQyNDY1ODE1NDExMjk0MjE0MA.GyoG2w.Phdq0z6BE4aplaykIhpM73ETbkOq1IEWDTvSc8)
+bot.run(TOKEN)
