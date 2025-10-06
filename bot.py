@@ -1,22 +1,22 @@
 import os
 import json
 import discord
-from discord import app_commands
 from discord.ext import commands
+from discord import app_commands
 from discord.ui import View, Button
 from datetime import datetime, date
 from zoneinfo import ZoneInfo
 
-# ====== CONFIGURAÇÕES ======
+# ===== CONFIG =====
 TIMEZONE = ZoneInfo("America/Recife")
 DATA_FILE = "dados_financeiros.json"
 TOKEN = os.getenv("TOKEN")
-# ============================
+# ==================
 
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ====== Funções auxiliares ======
+# ===== Funções Auxiliares =====
 def load_data():
     if not os.path.exists(DATA_FILE):
         return {}
@@ -34,74 +34,69 @@ def get_user(user_id):
         save_data(data)
     return data
 
-def update_user(user_id, registro):
-    data = load_data()
-    data[str(user_id)] = registro
-    save_data(data)
-
 def fmt_money(v):
     return f"R${v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 def now():
     return datetime.now(tz=TIMEZONE)
 
-# ====== BOT READY ======
+# ===== Bot ready =====
 @bot.event
 async def on_ready():
     await bot.tree.sync()
     print(f"✅ Bot conectado como {bot.user}")
 
-# ====== COMANDOS ======
-@bot.tree.command(name="add_saldo", description="Adiciona ou define seu saldo total.")
+# ===== Comandos =====
+@bot.tree.command(name="add_saldo", description="Define ou adiciona saldo.")
 async def add_saldo(interaction: discord.Interaction, valor: float):
-    user_id = interaction.user.id
+    user_id = str(interaction.user.id)
     data = get_user(user_id)
-    data[str(user_id)]["saldo"] = valor
-    data[str(user_id)]["transacoes"].append({
+    data[user_id]["saldo"] = valor
+    data[user_id]["transacoes"].append({
         "tipo": "definido",
         "valor": valor,
         "motivo": "Saldo inicial definido",
         "hora": now().isoformat()
     })
     save_data(data)
-    await interaction.response.send_message(f"💰 Seu saldo foi definido para **{fmt_money(valor)}**.")
+    await interaction.response.send_message(f"💰 Saldo definido para **{fmt_money(valor)}**.")
 
 @bot.tree.command(name="saldo_atual", description="Mostra seu saldo atual.")
 async def saldo_atual(interaction: discord.Interaction):
-    user_id = interaction.user.id
+    user_id = str(interaction.user.id)
     data = get_user(user_id)
-    saldo = data[str(user_id)]["saldo"]
-    await interaction.response.send_message(f"💵 Seu saldo atual é **{fmt_money(saldo)}**.")
+    saldo = data[user_id]["saldo"]
+    await interaction.response.send_message(f"💵 Saldo atual: **{fmt_money(saldo)}**.")
 
-@bot.tree.command(name="gasto", description="Registra um gasto e subtrai do saldo.")
+@bot.tree.command(name="gasto", description="Registra gasto e subtrai do saldo.")
 async def gasto(interaction: discord.Interaction, valor: float, motivo: str):
-    user_id = interaction.user.id
+    user_id = str(interaction.user.id)
     data = get_user(user_id)
-    data[str(user_id)]["saldo"] -= valor
-    data[str(user_id)]["transacoes"].append({
+    data[user_id]["saldo"] -= valor
+    data[user_id]["transacoes"].append({
         "tipo": "gasto",
         "valor": valor,
         "motivo": motivo,
         "hora": now().isoformat()
     })
     save_data(data)
-    await interaction.response.send_message(f"📉 Gasto de **{fmt_money(valor)}** com **{motivo}** registrado.\nNovo saldo: **{fmt_money(data[str(user_id)]['saldo'])}**.")
+    await interaction.response.send_message(f"📉 Gasto de **{fmt_money(valor)}** com **{motivo}** registrado.\nNovo saldo: **{fmt_money(data[user_id]['saldo'])}**.")
 
-@bot.tree.command(name="ganho", description="Registra um ganho e soma ao saldo.")
+@bot.tree.command(name="ganho", description="Registra ganho e adiciona ao saldo.")
 async def ganho(interaction: discord.Interaction, valor: float, motivo: str):
-    user_id = interaction.user.id
+    user_id = str(interaction.user.id)
     data = get_user(user_id)
-    data[str(user_id)]["saldo"] += valor
-    data[str(user_id)]["transacoes"].append({
+    data[user_id]["saldo"] += valor
+    data[user_id]["transacoes"].append({
         "tipo": "ganho",
         "valor": valor,
         "motivo": motivo,
         "hora": now().isoformat()
     })
     save_data(data)
-    await interaction.response.send_message(f"📈 Ganho de **{fmt_money(valor)}** com **{motivo}** registrado.\nNovo saldo: **{fmt_money(data[str(user_id)]['saldo'])}**.")
+    await interaction.response.send_message(f"📈 Ganho de **{fmt_money(valor)}** com **{motivo}** registrado.\nNovo saldo: **{fmt_money(data[user_id]['saldo'])}**.")
 
-# ====== HISTÓRICO COM BOTÕES ======
+# ===== Histórico com Botões =====
 class HistoricoView(View):
     def __init__(self, user_id):
         super().__init__(timeout=None)
@@ -110,37 +105,31 @@ class HistoricoView(View):
     async def send_embed(self, interaction, tipo):
         data = get_user(self.user_id)
         transacoes = data[str(self.user_id)]["transacoes"]
-
         hoje = date.today()
-        agora = now()
         linhas = []
 
         for t in transacoes:
             dt = datetime.fromisoformat(t["hora"]).astimezone(TIMEZONE)
             incluir = False
-
             if tipo == "diario":
                 incluir = dt.date() == hoje
             elif tipo == "mensal":
                 incluir = (dt.year == hoje.year and dt.month == hoje.month)
             elif tipo == "total":
                 incluir = True
-
             if incluir:
-                emoji = "💰" if t["tipo"] == "ganho" else "💸" if t["tipo"] == "gasto" else "⚙️"
+                emoji = "💰" if t["tipo"]=="ganho" else "💸" if t["tipo"]=="gasto" else "⚙️"
                 linhas.append(f"[{dt.strftime('%d/%m %H:%M')}] {emoji} {t['tipo'].capitalize()} {fmt_money(t['valor'])} — {t['motivo']}")
 
         if not linhas:
-            linhas = ["Nenhuma transação registrada nesse período."]
+            linhas = ["Nenhuma transação nesse período."]
 
         embed = discord.Embed(
             title=f"📜 Histórico {tipo.capitalize()}",
             description="\n".join(linhas[-20:]),
             color=discord.Color.gold()
         )
-        embed.add_field(name="💵 Saldo atual", value=fmt_money(data[str(self.user_id)]["saldo"]), inline=False)
-        embed.set_footer(text=f"Atualizado em {agora.strftime('%d/%m/%Y %H:%M')}")
-
+        embed.add_field(name="💵 Saldo atual", value=fmt_money(data[str(self.user_id)]["saldo"]))
         await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="📅 Diário", style=discord.ButtonStyle.primary)
@@ -155,18 +144,18 @@ class HistoricoView(View):
     async def total(self, interaction: discord.Interaction, button: Button):
         await self.send_embed(interaction, "total")
 
-@bot.tree.command(name="historico", description="Mostra seu histórico (diário, mensal e total).")
+@bot.tree.command(name="historico", description="Mostra histórico diário/mensal/total.")
 async def historico(interaction: discord.Interaction):
     view = HistoricoView(interaction.user.id)
     await interaction.response.send_message("Escolha qual histórico deseja ver:", view=view)
 
-# ====== RESETAR ======
-@bot.tree.command(name="resetar", description="Reseta seu saldo e histórico.")
+# ===== Resetar dados =====
+@bot.tree.command(name="resetar", description="Reseta saldo e histórico.")
 async def resetar(interaction: discord.Interaction):
-    user_id = interaction.user.id
+    user_id = str(interaction.user.id)
     data = load_data()
-    data[str(user_id)] = {"saldo": 0.0, "transacoes": []}
+    data[user_id] = {"saldo": 0.0, "transacoes": []}
     save_data(data)
-    await interaction.response.send_message("🔄 Todos os seus dados foram resetados com sucesso.")
+    await interaction.response.send_message("🔄 Todos os dados foram resetados.")
 
 bot.run(TOKEN)
